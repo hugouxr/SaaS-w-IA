@@ -629,13 +629,24 @@ function parseCSV(text){
 }
 
 // ── CONVERTIR UNE LIGNE CSV → OBJET SIGNAL ────────────────────────────
-function rowToSignal(row){
+// ── CONVERTIR UNE LIGNE CSV → OBJET SIGNAL ────────────────============
+function rowToSignal(row, index){
   const g=(i)=>(row[i]||'').trim();
-  const id=parseInt(g(COL.ID))||0;
-  if(!id||!g(COL.ENTREPRISE)) return null;
+  
+  // SÉCURITÉ : Si l'ID de la colonne A est absent, on utilise l'index de la ligne pour ne pas bloquer l'affichage
+  let id=parseInt(g(COL.ID)) || (index + 100);
+  
+  if(!g(COL.ENTREPRISE)) return null; // On rejette uniquement si le nom de l'entreprise est vide
+  
+  // SÉCURITÉ DATE : Si la date de ton Sheets est invalide ou vide, on met la date du jour
+  let sDate = g(COL.DATE);
+  if (!sDate || isNaN(new Date(sDate).getTime())) {
+    sDate = new Date().toISOString().slice(0,10);
+  }
+
   return {
     id,
-    date      : g(COL.DATE)||new Date().toISOString().slice(0,10),
+    date      : sDate,
     co        : g(COL.ENTREPRISE),
     sec       : g(COL.SECTEUR),
     type      : g(COL.TYPE)||'Prospect',
@@ -706,8 +717,7 @@ async function loadFromSheets(){
     const text=await res.text();
     const rows=parseCSV(text);
     // Ignorer la ligne d'en-tête (ligne 1)
-    const parsed=rows.slice(1).map(rowToSignal).filter(Boolean);
-    if(parsed.length===0) throw new Error('Sheet vide ou format invalide');
+    const parsed=rows.slice(1).map((row, idx) => rowToSignal(row, idx)).filter(Boolean);    if(parsed.length===0) throw new Error('Sheet vide ou format invalide');
     const merged=mergeWithLocal(parsed);
     signals=merged;
     nextId=Math.max(...signals.map(s=>s.id),nextId)+1;
