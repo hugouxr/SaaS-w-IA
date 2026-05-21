@@ -486,7 +486,25 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--sa);font-size:1
 const TODAY = new Date();
 TODAY.setHours(0,0,0,0);
 
-function daysSince(d){const dt=new Date(d);dt.setHours(0,0,0,0);return Math.floor((TODAY-dt)/86400000)}
+function daysSince(d){
+  if(!d) return 0;
+  let cleanDate = d.trim();
+  
+  // Si la date est au format JJ/MM/AAAA (Français), on la convertit en AAAA-MM-JJ pour JavaScript
+  if(cleanDate.includes('/')) {
+    const parts = cleanDate.split('/');
+    if(parts.length === 3) {
+      // Gère le format JJ/MM/AAAA -> AAAA-MM-JJ
+      cleanDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+  }
+  
+  const dt = new Date(cleanDate);
+  if(isNaN(dt.getTime())) return 0; // Sécurité si la date est vraiment illisible
+  
+  dt.setHours(0,0,0,0);
+  return Math.floor((TODAY-dt)/86400000);
+}
 
 function urgCalc(days){
   if(days>=150) return 'uk';
@@ -640,7 +658,7 @@ function rowToSignal(row, index){
   
   // SÉCURITÉ DATE : Si la date de ton Sheets est invalide ou vide, on met la date du jour
   let sDate = g(COL.DATE);
-  if (!sDate || isNaN(new Date(sDate).getTime())) {
+  if (!sDate) {
     sDate = new Date().toISOString().slice(0,10);
   }
 
