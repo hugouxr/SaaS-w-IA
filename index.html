@@ -565,8 +565,9 @@ let suivis=[
 ];
 
 let signals=[], editId=null, nextId=14;
-const LS_KEY='uxr_signals_v5', LS_SUIV='uxr_suivis_v5', LS_NID='uxr_nextid_v5', LS_HIST='uxr_hist_v5';
+const LS_KEY='uxr_signals_v5', LS_SUIV='uxr_suivis_v5', LS_NID='uxr_nextid_v5', LS_HIST='uxr_hist_v5', LS_DEL='uxr_deleted_v5';
 let histoire=[];
+let deletedIds=[]; // Liste des IDs supprimés pour filtrer le Sheets
 
 // ═══════════════════════════════════════════════════════════════════════
 // ██  CONFIGURATION GOOGLE SHEETS  ████████████████████████████████████
@@ -735,8 +736,14 @@ async function loadFromSheets(){
     const text=await res.text();
     const rows=parseCSV(text);
     // Ignorer la ligne d'en-tête (ligne 1)
-    const parsed=rows.slice(1).map((row, idx) => rowToSignal(row, idx)).filter(Boolean);    if(parsed.length===0) throw new Error('Sheet vide ou format invalide');
-    const merged=mergeWithLocal(parsed);
+    let parsed=rows.slice(1).map((row, idx) => rowToSignal(row, idx)).filter(Boolean);
+    
+    // FILTRE MAGIQUE : On rejette les signaux supprimés localement
+    parsed = parsed.filter(s => !deletedIds.includes(s.id));
+    
+    if(parsed.length===0 && rows.length > 1) {
+      Logger.log("Tous les signaux du Sheets sont actuellement masqués localement.");
+    }    const merged=mergeWithLocal(parsed);
     signals=merged;
     nextId=Math.max(...signals.map(s=>s.id),nextId)+1;
     setSyncStatus('ok','Sheets · '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
@@ -759,6 +766,10 @@ function loadFromLocal(){
     if(rs) suivis=JSON.parse(rs);
     const rh=localStorage.getItem(LS_HIST);
     if(rh) histoire=JSON.parse(rh);
+    
+    // Charger la mémoire des IDs supprimés
+    const rd=localStorage.getItem(LS_DEL);
+    if(rd) deletedIds=JSON.parse(rd);
   }catch(e){signals=[...SEED];}
 }
 
@@ -1609,6 +1620,13 @@ function cp(txt){navigator.clipboard.writeText(txt).then(()=>toast('Copié ✓')
 function deleteSig(id){
   const s=signals.find(x=>x.id===id);if(!s)return;
   if(!confirm('Supprimer le signal "'+s.co+'" ? Cette action est irréversible.'))return;
+  
+  // Ajouter l'ID à la liste noire et sauvegarder
+  if(!deletedIds.includes(id)) {
+    deletedIds.push(id);
+    localStorage.setItem(LS_DEL, JSON.stringify(deletedIds));
+  }
+  
   signals=signals.filter(x=>x.id!==id);
   suivis=suivis.filter(x=>x.co!==s.co);
   save();renderSig();renderPipe();renderSuiv();renderDash();
